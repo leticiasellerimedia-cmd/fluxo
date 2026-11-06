@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Your quote</title>
+  <link rel="stylesheet" href="/styles.css">
+  <style>.wrap{max-width:680px;margin:0 auto;padding:20px 16px 60px}</style>
+</head>
+<body>
+  <div class="demo-bar"><strong>Demo mode / Modo demonstração:</strong> this page simulates what the client sees. No real approval or payment happens.</div>
+  <div class="wrap" id="app"><div class="muted">Loading...</div></div>
+  <script>
+  const tok = location.pathname.split('/').pop();
+  const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const usd = (c) => (c / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+  const usDate = (d) => { const [y, m, dd] = d.split('-'); return `${m}/${dd}/${y}`; };
+  const FREQ = { one_time: 'One-time service', weekly: 'Weekly', biweekly: 'Every two weeks', monthly: 'Monthly' };
+  async function load() {
+    const app = document.getElementById('app');
+    const res = await fetch('/api/public/quotes/' + encodeURIComponent(tok));
+    const data = await res.json();
+    if (!res.ok) { app.innerHTML = `<div class="card card-pad"><h2>Quote not available</h2><p class="muted">${esc(data.error)}</p></div>`; return; }
+    const { company, quote: q, client, address } = data;
+    const t = q.payment_terms;
+    const terms = t.type === 'deposit' ? `${t.deposit_percent}% deposit (${usd(q.deposit_amount)}) on approval, balance after completion` : 'Full payment after completion';
+    const due = t.due_days > 0 ? `, due within ${t.due_days} day(s)` : '';
+    const status = { approved: '<div class="callout ok"><strong>Approved.</strong> Thank you! We will contact you to confirm the date and time.</div>',
+      declined: '<div class="callout">This quote was declined.</div>' }[q.status] || (q.expired ? '<div class="callout warn">This quote has expired. Please contact us for an updated quote.</div>' : '');
+    app.innerHTML = `
+      <div class="doc stack">
+        <div class="row between top wrap"><div><div style="font-weight:700;font-size:20px">${esc(company.name)}</div><div class="small muted">${esc(company.phone || '')} ${company.email ? '· ' + esc(company.email) : ''}</div></div>
+          <div class="right small"><div style="font-weight:600">Quote ${esc(q.number)}</div><div class="muted">Valid until ${usDate(q.valid_until)}</div></div></div>
+        <div><div class="small muted">Prepared for</div><div style="font-weight:600">${esc(client.name)}</div>${address ? `<div class="small">${esc(address.line1)}, ${esc(address.city || '')} ${esc(address.state || '')} ${esc(address.zip || '')}</div>` : ''}</div>
+        <table><thead><tr><th>Service</th><th class="right">Qty</th><th class="right">Total</th></tr></thead><tbody>
+          ${q.items.map((i) => `<tr><td>${esc(i.description)}${i.details ? `<div class="small muted">${esc(i.details)}</div>` : ''}</td><td class="right">${i.quantity}</td><td class="right">${usd(Math.round(i.quantity * i.unit_price))}</td></tr>`).join('')}
+          <tr class="total"><td colspan="2">Total${q.frequency !== 'one_time' ? ' per visit' : ''}</td><td class="right">${usd(q.total)}</td></tr></tbody></table>
+        ${q.notes ? `<div class="small">${esc(q.notes)}</div>` : ''}
+        <div class="small muted">${FREQ[q.frequency]} · ${terms}${due}</div>
+        ${status}
+        ${q.status === 'sent' && !q.expired ? `<div class="stack"><button class="btn primary lg block" id="approve">Approve quote</button><button class="btn block" id="decline">Decline</button>
+          <p class="small muted">After approval, ${esc(company.name)} will contact you to confirm the date. No date is booked automatically.</p></div>` : ''}
+        <div class="small muted" id="err"></div>
+      </div>`;
+    const act = async (path, body) => {
+      const b = document.getElementById(path === 'approve' ? 'approve' : 'decline'); b.disabled = true;
+      const r = await fetch(`/api/public/quotes/${encodeURIComponent(tok)}/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+      if (!r.ok) { const e = await r.json().catch(() => ({})); document.getElementById('err').textContent = e.error || 'Something went wrong.'; b.disabled = false; return; }
+      load();
+    };
+    const a = document.getElementById('approve'); if (a) a.onclick = () => act('approve');
+    const d = document.getElementById('decline'); if (d) d.onclick = () => { if (confirm('Decline this quote?')) act('decline', { reason: 'Declined by client via link' }); };
+  }
+  load();
+  </script>
+</body>
+</html>

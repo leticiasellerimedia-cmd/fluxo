@@ -1,0 +1,93 @@
+// Jornadas prontas. As mensagens ao cliente estão em inglês porque o destinatário
+// é o cliente final nos EUA; a interface do sistema permanece em português.
+const D = 1440; // minutos em um dia
+
+module.exports = [
+  {
+    key: 'order_received', name: 'Confirmação de pedido recebido', category: 'operational',
+    description: 'Confirma ao cliente que o pedido chegou, assim que o contato é cadastrado.',
+    triggers: ['lead.created'], conditions: ['has_contact'], owner_role: 'assistant',
+    rules: { pause_on_reply: false },
+    steps: [{ anchor: 'event', offset_minutes: 0, send_hour: null, channel: 'preferred',
+      subject: 'We received your request - {{empresa}}',
+      body: 'Hi {{cliente_primeiro_nome}}, thanks for contacting {{empresa}}! We received your request and will get back to you shortly with a quote. Reply to this message if you have any questions.' }],
+  },
+  {
+    key: 'quote_followup', name: 'Follow-up de orçamento sem resposta', category: 'commercial',
+    description: 'Acompanha orçamentos enviados até aprovação, recusa ou resposta do cliente.',
+    triggers: ['quote.sent'], conditions: ['quote_still_open', 'no_open_complaint'], owner_role: 'assistant',
+    rules: { pause_on_reply: true },
+    steps: [
+      { anchor: 'event', offset_minutes: 2 * D, send_hour: 10, channel: 'sms', subject: null,
+        body: 'Hi {{cliente_primeiro_nome}}, this is {{empresa}}. Just checking in on your cleaning quote {{orcamento_numero}} ({{orcamento_valor}}). You can review and approve it here: {{link_orcamento}}' },
+      { anchor: 'event', offset_minutes: 5 * D, send_hour: 10, channel: 'email', subject: 'Any questions about your quote?',
+        body: 'Hi {{cliente_primeiro_nome}},\n\nWe would love to help with your cleaning. Your quote {{orcamento_numero}} for {{orcamento_valor}} is ready for review: {{link_orcamento}}\n\nIf anything needs to change, just reply and we will adjust it.\n\n{{empresa}}' },
+      { anchor: 'quote_valid_until', offset_minutes: -D, send_hour: 10, channel: 'sms', subject: null,
+        body: 'Hi {{cliente_primeiro_nome}}, your quote {{orcamento_numero}} from {{empresa}} expires tomorrow. Approve it here to secure your spot: {{link_orcamento}}' },
+    ],
+  },
+  {
+    key: 'booking_confirmation', name: 'Confirmação de agendamento', category: 'operational',
+    description: 'Confirma data e horário quando o serviço é agendado ou reagendado.',
+    triggers: ['job.scheduled', 'job.rescheduled'], conditions: ['first_in_series_or_single'], owner_role: 'assistant',
+    rules: { pause_on_reply: false },
+    steps: [{ anchor: 'event', offset_minutes: 0, send_hour: null, channel: 'preferred', subject: 'Your cleaning is confirmed',
+      body: 'Hi {{cliente_primeiro_nome}}, your cleaning with {{empresa}} is confirmed for {{data_servico}} at {{hora_servico}} at {{endereco}}. Reply to this message if you need to make any changes.' }],
+  },
+  {
+    key: 'service_reminder', name: 'Lembrete antes do serviço', category: 'operational',
+    description: 'Lembra o cliente 24 horas antes de cada visita. Reagendamentos atualizam o horário do lembrete.',
+    triggers: ['job.scheduled'], conditions: [], owner_role: 'assistant',
+    rules: { pause_on_reply: false },
+    steps: [{ anchor: 'job_start', offset_minutes: -D, send_hour: null, channel: 'sms', subject: null,
+      body: 'Reminder: {{empresa}} will be at {{endereco}} tomorrow, {{data_servico}}, at {{hora_servico}}. Need to reschedule? Just reply.' }],
+  },
+  {
+    key: 'on_the_way', name: 'Aviso de equipe a caminho', category: 'operational',
+    description: 'Disparado pela equipe de campo no botão "A caminho".',
+    triggers: ['job.on_the_way'], conditions: [], owner_role: 'assistant',
+    rules: { pause_on_reply: false },
+    steps: [{ anchor: 'event', offset_minutes: 0, send_hour: null, channel: 'sms', subject: null,
+      body: 'Hi {{cliente_primeiro_nome}}, {{equipe}} from {{empresa}} is on the way to {{endereco}}. See you soon!' }],
+  },
+  {
+    key: 'post_completion', name: 'Comunicação após a conclusão', category: 'operational',
+    description: 'Agradece e confirma a conclusão do serviço.',
+    triggers: ['job.completed'], conditions: [], owner_role: 'assistant',
+    rules: { pause_on_reply: false },
+    steps: [{ anchor: 'event', offset_minutes: 60, send_hour: null, channel: 'preferred', subject: 'Your cleaning is complete',
+      body: 'Hi {{cliente_primeiro_nome}}, your cleaning at {{endereco}} is complete. Thank you for choosing {{empresa}}! If anything is not perfect, reply and we will make it right.' }],
+  },
+  {
+    key: 'payment_reminder', name: 'Lembrete de pagamento', category: 'billing',
+    description: 'Envia a cobrança e lembra antes e depois do vencimento até o pagamento integral.',
+    triggers: ['invoice.issued'], conditions: ['invoice_unpaid'], owner_role: 'owner',
+    rules: { pause_on_reply: false },
+    steps: [
+      { anchor: 'event', offset_minutes: 0, send_hour: null, channel: 'email', subject: 'Invoice {{cobranca_numero}} from {{empresa}}',
+        body: 'Hi {{cliente_primeiro_nome}},\n\nHere is your invoice {{cobranca_numero}} for {{valor_aberto}}, due {{vencimento}}.\n\nThank you,\n{{empresa}}' },
+      { anchor: 'invoice_due', offset_minutes: -D, send_hour: 9, channel: 'sms', subject: null,
+        body: 'Hi {{cliente_primeiro_nome}}, friendly reminder from {{empresa}}: invoice {{cobranca_numero}} ({{valor_aberto}}) is due tomorrow, {{vencimento}}.' },
+      { anchor: 'invoice_due', offset_minutes: D, send_hour: 10, channel: 'sms', subject: null,
+        body: 'Hi {{cliente_primeiro_nome}}, invoice {{cobranca_numero}} from {{empresa}} ({{valor_aberto}}) was due {{vencimento}}. Please let us know if you have any questions.' },
+      { anchor: 'invoice_due', offset_minutes: 7 * D, send_hour: 10, channel: 'email', subject: 'Past due: invoice {{cobranca_numero}}',
+        body: 'Hi {{cliente_primeiro_nome}},\n\nOur records show {{valor_aberto}} still open on invoice {{cobranca_numero}}, due {{vencimento}}. Reply to this email if you need help.\n\n{{empresa}}' },
+    ],
+  },
+  {
+    key: 'satisfaction_survey', name: 'Pesquisa de satisfação', category: 'relationship',
+    description: 'Pergunta a nota do serviço no dia seguinte à conclusão. Notas baixas viram reclamação.',
+    triggers: ['job.completed'], conditions: ['no_open_complaint'], owner_role: 'owner',
+    rules: { pause_on_reply: false },
+    steps: [{ anchor: 'event', offset_minutes: D, send_hour: 10, channel: 'sms', subject: null,
+      body: 'Hi {{cliente_primeiro_nome}}, how did we do on your cleaning? Reply with a number from 1 (poor) to 5 (excellent). Your feedback helps {{empresa}} improve.' }],
+  },
+  {
+    key: 'rebooking', name: 'Lembrete de nova contratação', category: 'commercial',
+    description: 'Convida clientes de serviço avulso a agendar a próxima limpeza ou uma recorrência.',
+    triggers: ['job.completed'], conditions: ['job_not_recurring', 'no_upcoming_job', 'no_open_complaint'], owner_role: 'assistant',
+    rules: { pause_on_reply: true },
+    steps: [{ anchor: 'event', offset_minutes: 21 * D, send_hour: 10, channel: 'email', subject: 'Ready for your next cleaning?',
+      body: 'Hi {{cliente_primeiro_nome}},\n\nIt has been a few weeks since your last cleaning with {{empresa}}. Would you like to book the next one? Many clients save time with a biweekly or monthly plan. Just reply with a day that works for you.\n\n{{empresa}}' }],
+  },
+];
