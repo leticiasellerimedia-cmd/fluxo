@@ -7,7 +7,7 @@ const integrations = require('./integrations');
 const C = (ctx) => ctx.company.id;
 const now = () => clock.iso();
 const METHODS = { cash: 'Dinheiro', check: 'Cheque', zelle: 'Zelle', venmo: 'Venmo', card_manual: 'Cartão (maquininha externa)', ach: 'Transferência (ACH)', other: 'Outro' };
-const EXPENSE_CATEGORIES = ['Produtos de limpeza', 'Mão de obra terceirizada', 'Combustível e deslocamento', 'Equipamentos', 'Marketing', 'Seguro', 'Software', 'Outros'];
+const EXPENSE_CATEGORIES = ['Produtos de limpeza', 'Mão de obra terceirizada', 'Combustível e deslocamento', 'Equipamentos', 'Marketing', 'Seguro', 'Software', 'Bônus e premiações', 'Outros'];
 
 // Emite cobrança de forma idempotente: a mesma origem (source_key) nunca gera duas cobranças.
 function issueInvoice(ctx, { client_id, job_id = null, quote_id = null, kind, amount, due_date, description, source_key = null }) {

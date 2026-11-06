@@ -36,3 +36,9 @@ Teste automatizado de ponta a ponta (sobe um servidor com banco temporário): `n
 ## Variáveis
 
 `PORT` (padrão 3000), `DB_FILE` (padrão `data/fluxo.db`), `PUBLIC_URL` (base dos links enviados ao cliente).
+
+## Gestão de time (aba "Time", somente o dono)
+
+Acompanhamento mensal pelo método MAGIC (Significado, Autonomia, Crescimento, Impacto, Conexão), com a nota do dono e, opcionalmente, a visão do colaborador; perfil de cada pessoa; PDI com metas, prazos e status; indicadores calculados da operação (horas, checklist, notas e reclamações de clientes, tarefas no prazo, orçamentos aprovados); regras de premiação com aprovação do dono, e premiações pagas lançadas como despesa no Financeiro; relatórios mensais por pessoa e do time, prontos para imprimir ou salvar em PDF.
+
+Para trocar de método, edite apenas `server/team-method.js`.

@@ -14,6 +14,7 @@ function navItems() {
     p.finance && ['#/financeiro', 'Financeiro', 'dollar'],
     p.journeys && ['#/jornadas', 'Jornadas', 'zap'],
     p.tasks && ['#/tarefas', 'Tarefas', 'check'],
+    p.team && ['#/time', 'Time', 'award'],
     p.settings && ['#/config', 'Configurações', 'settings'],
   ].filter(Boolean);
 }

@@ -7,9 +7,10 @@ const engine = require('./engine');
 const crm = require('./svc-crm');
 const ops = require('./svc-ops');
 const fin = require('./svc-fin');
+const team = require('./svc-team');
 const DEFAULT_JOURNEYS = require('./journeys-default');
 
-const TABLES = ['journey_log', 'audit_log', 'events', 'communications', 'scheduled_messages', 'enrollments', 'journeys', 'payments', 'invoices', 'incomes', 'expenses',
+const TABLES = ['bonuses', 'bonus_rules', 'pdi_goals', 'team_reviews', 'team_profiles', 'journey_log', 'audit_log', 'events', 'communications', 'scheduled_messages', 'enrollments', 'journeys', 'payments', 'invoices', 'incomes', 'expenses',
   'time_entries', 'tasks', 'jobs', 'job_series', 'quote_items', 'quotes', 'opportunities', 'addresses', 'clients', 'sessions', 'users', 'crews', 'companies'];
 
 function installJourneys(db, companyId) {
@@ -190,6 +191,11 @@ function seed(db) {
   step(-2, '11:00', () => crm.updateOpportunity(JULIA, refs.mark.opportunity_id, { stage: 'contacted', next_action_due: D(-1) }));
   step(0, '06:30', () => lead(JULIA, 'jennifer', { name: 'Jennifer Walsh', phone: '(407) 555-0109', email: 'jen.walsh@example.com', source: 'Google', service_interest: 'Standard clean', estimated_value: 18000 }));
 
+  // Notas da pesquisa de satisfação (alimentam os indicadores do time).
+  step(-19, '10:40', () => crm.simulateInbound(JULIA, refs.karen.client_id, { kind: 'rating', channel: 'sms', rating: 5, text: '5 - Rosa did an amazing job!' }));
+  step(-13, '10:30', () => crm.simulateInbound(JULIA, refs.sarah.client_id, { kind: 'rating', channel: 'sms', rating: 5 }));
+  step(0, '10:30', () => crm.simulateInbound(JULIA, refs.emily.client_id, { kind: 'rating', channel: 'sms', rating: 4 }));
+
   // Tarefas, despesas e receitas manuais.
   step(-1, '09:00', () => crm.createTask(JULIA, { title: 'Ligar para Mark e levantar metragem para o orçamento', assignee_id: julia, due_date: D(-1), client_id: refs.mark.client_id }));
   step(-1, '09:05', () => crm.createTask(ANA, { title: 'Repor produtos de limpeza da Equipe Azul', assignee_id: carla, due_date: D(0) }));
@@ -217,7 +223,48 @@ function seed(db) {
   } finally {
     clock.reset();
   }
+  seedTeam(db, ANA, { julia, carla, rosa, bianca: db.get(`SELECT id FROM users WHERE email = 'bianca@brightway.demo'`).id }, T);
   return { companyA: A, companyB: B };
+}
+
+function seedTeam(db, ANA, u, T) {
+  const ctx = { ...ANA, user: db.get('SELECT * FROM users WHERE id = ?', ANA.user.id) };
+  const M1 = TZ.addMonthsClamped(T.slice(0, 7) + '-01', -1, 1).slice(0, 7);
+  const M2 = TZ.addMonthsClamped(T.slice(0, 7) + '-01', -2, 1).slice(0, 7);
+  const sc = (M, A, G, I, C) => ({ M, A, G, I, C });
+  db.tx(() => {
+    team.saveProfile(ctx, u.julia, { position: 'Assistente virtual (VA)', hire_date: '2025-08-04', employment_type: '1099', motivators: 'Flexibilidade de horário e chance de crescer na área comercial.', career_goals: 'Assumir a gestão comercial da empresa.', strengths: 'Organizada, rápida no follow-up, ótima escrita em inglês.' });
+    team.saveProfile(ctx, u.carla, { position: 'Líder da Equipe Azul', hire_date: '2024-03-11', employment_type: 'w2', motivators: 'Reconhecimento pelo padrão de qualidade e renda extra por desempenho.', career_goals: 'Supervisionar as duas equipes.', strengths: 'Referência de qualidade; os clientes recorrentes pedem por ela.' });
+    team.saveProfile(ctx, u.rosa, { position: 'Líder da Equipe Verde', hire_date: '2025-01-20', employment_type: 'w2', motivators: 'Estabilidade e um ambiente de equipe tranquilo.', career_goals: 'Melhorar o inglês para atender clientes sozinha.', strengths: 'Pontual, cuidadosa, excelente com mudanças (move-out).' });
+    team.saveProfile(ctx, u.bianca, { position: 'Auxiliar de limpeza', hire_date: '2026-09-15', employment_type: 'w2', motivators: 'Ainda conhecendo: perguntar na próxima conversa.', career_goals: '', strengths: 'Aprende rápido.' });
+    const rv = (user_id, month, ms, ss, extra = {}) => team.saveReview(ctx, { user_id, month, manager_scores: ms, self_scores: ss, ...extra });
+    rv(u.julia, M2, sc(4, 3, 3, 4, 4), sc(4, 2, 4, 4, 4));
+    rv(u.julia, M1, sc(4, 4, 4, 4, 4), sc(4, 2, 4, 4, 5), { notes: { A: 'Ela sente que precisa pedir aprovação para tudo no comercial.' }, highlights: 'Zerou os follow-ups atrasados na segunda quinzena.', attention: 'Diferença grande entre a minha visão e a dela sobre autonomia.', agreements: 'Julia aprova sozinha descontos de até 10% nos orçamentos.' });
+    rv(u.carla, M2, sc(4, 4, 3, 4, 4), null);
+    rv(u.carla, M1, sc(4, 4, 2, 3, 4), sc(4, 4, 2, 3, 3), { notes: { G: 'Disse que está "no mesmo lugar" há dois anos.' }, highlights: 'Nenhuma reclamação de clientes recorrentes.', attention: 'Risco de saída se não enxergar crescimento.', agreements: 'Montar o PDI de supervisão até o dia 10.' });
+    rv(u.rosa, M2, sc(5, 4, 4, 5, 4), null);
+    rv(u.rosa, M1, sc(5, 4, 4, 5, 5), sc(5, 4, 3, 5, 5), { highlights: 'Elogio espontâneo da cliente Karen Davis.', agreements: 'Pesquisar curso de inglês com horário compatível.' });
+    rv(u.bianca, M1, sc(3, 2, 3, 3, 2), sc(4, 3, 4, 3, 3), { notes: { C: 'Ainda não se sente parte da equipe; pouco contato com a liderança.' }, attention: 'Período de adaptação: risco de desistência nos primeiros 90 dias.', agreements: 'Conversa quinzenal com o dono até completar 90 dias.' });
+    const goal = (user_id, title, dimension, due, status, actions, success_criteria) => {
+      const id = team.createGoal(ctx, { user_id, title, dimension, due_date: TZ.addDays(T, due), actions, success_criteria });
+      if (status !== 'not_started') team.updateGoal(ctx, id, { status });
+    };
+    goal(u.carla, 'Preparar-se para supervisionar as duas equipes', 'G', 60, 'in_progress', 'Acompanhar a dona em 2 avaliações de qualidade por mês; treinar a Bianca no padrão de deep clean.', 'Fazer 4 avaliações de qualidade sozinha, com nota média dos clientes de pelo menos 4.5.');
+    goal(u.bianca, 'Dominar o checklist de deep clean', 'G', 20, 'in_progress', 'Executar 3 deep cleans acompanhada pela Carla.', 'Checklist 100% completo em 3 serviços seguidos.');
+    goal(u.bianca, 'Conversa quinzenal com o dono', 'C', -3, 'not_started', 'Agendar 15 minutos a cada 15 dias até completar 90 dias de empresa.', 'Duas conversas realizadas por mês.');
+    goal(u.julia, 'Assumir o funil comercial de ponta a ponta', 'A', 45, 'in_progress', 'Definir com a dona os limites de desconto e as regras de aprovação.', 'Taxa de aprovação de orçamentos acima de 50% sem envolver a dona.');
+    goal(u.julia, 'Zerar os follow-ups atrasados', 'I', -2, 'done', 'Revisar a tela Hoje duas vezes por dia.', 'Nenhum follow-up atrasado por 2 semanas.');
+    goal(u.rosa, 'Curso de inglês para atendimento', 'G', 90, 'not_started', 'Escolher curso noturno ou online; empresa reembolsa 50%.', 'Conseguir atender um cliente novo sozinha.');
+    const rule = (name, applies_to, metric, threshold, dollars) => team.saveRule(ctx, null, { name, applies_to, metric, threshold, amount: dollars * 100 });
+    const rRating = rule('Nota dos clientes', 'field', 'avg_rating_gte', 4.5, 50);
+    rule('Zero reclamações', 'field', 'zero_complaints', null, 40);
+    rule('Checklist impecável', 'field', 'checklist_pct_gte', 95, 30);
+    rule('Tarefas em dia', 'assistant', 'tasks_on_time_pct_gte', 90, 60);
+    rule('Evolução no PDI', 'all', 'pdi_goal_done', null, 25);
+    const zero = db.get(`SELECT id FROM bonus_rules WHERE company_id = ? AND metric = 'zero_complaints'`, ctx.company.id).id;
+    try { const b = team.createBonus(ctx, { user_id: u.rosa, month: M1, rule_id: zero }); team.payBonus(ctx, b.id, { paid_date: T.slice(0, 7) + '-01' }); } catch (e) { /* critério não atingido nesta data */ }
+    try { team.createBonus(ctx, { user_id: u.rosa, month: M1, rule_id: rRating }); } catch (e) { /* critério não atingido nesta data */ }
+  });
 }
 
 module.exports = { seed, installJourneys };

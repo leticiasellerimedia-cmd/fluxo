@@ -89,7 +89,7 @@ function one(ctx, table, id, label = 'Registro') {
   return row;
 }
 
-const PERMS = ['clients', 'sales', 'schedule', 'tasks', 'journeys', 'finance', 'settings', 'field'];
+const PERMS = ['clients', 'sales', 'schedule', 'tasks', 'journeys', 'finance', 'settings', 'field', 'team'];
 const ROLE_DEFAULTS = {
   owner: Object.fromEntries(PERMS.map((p) => [p, true])),
   assistant: { clients: true, sales: true, schedule: true, tasks: true, journeys: true, finance: false, settings: false, field: false },

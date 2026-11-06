@@ -298,6 +298,22 @@ route('POST', '/api/enrollments/:id/:action', 'journeys', ({ ctx, params }) => d
   return { ok: true };
 }));
 
+// ---------------- Gestão de time (somente o dono) ----------------
+const team = require('./svc-team');
+route('GET', '/api/team', 'team', ({ ctx, query }) => team.overview(ctx, query));
+route('GET', '/api/team/report', 'team', ({ ctx, query }) => team.teamReport(ctx, query));
+route('GET', '/api/team/members/:id', 'team', ({ ctx, params, query }) => team.memberDetail(ctx, params.id, query));
+route('PATCH', '/api/team/members/:id/profile', 'team', ({ ctx, params, body }) => db.tx(() => team.saveProfile(ctx, params.id, body)));
+route('POST', '/api/team/reviews', 'team', ({ ctx, body }) => db.tx(() => team.saveReview(ctx, body)));
+route('POST', '/api/team/pdi', 'team', ({ ctx, body }) => ({ id: db.tx(() => team.createGoal(ctx, body)) }));
+route('PATCH', '/api/team/pdi/:id', 'team', ({ ctx, params, body }) => ({ id: db.tx(() => team.updateGoal(ctx, params.id, body)) }));
+route('POST', '/api/team/bonuses', 'team', ({ ctx, body }) => team.createBonus(ctx, body));
+route('POST', '/api/team/bonuses/:id/pay', 'team', ({ ctx, params, body }) => team.payBonus(ctx, params.id, body));
+route('POST', '/api/team/bonuses/:id/cancel', 'team', ({ ctx, params }) => db.tx(() => team.cancelBonus(ctx, params.id)));
+route('GET', '/api/team/rules', 'team', ({ ctx }) => team.listRules(ctx));
+route('POST', '/api/team/rules', 'team', ({ ctx, body }) => ({ id: db.tx(() => team.saveRule(ctx, null, body)) }));
+route('PATCH', '/api/team/rules/:id', 'team', ({ ctx, params, body }) => ({ id: db.tx(() => team.saveRule(ctx, params.id, body)) }));
+
 // ---------------- Configurações ----------------
 route('GET', '/api/settings', 'settings', ({ ctx }) => ({
   company: ctx.company,

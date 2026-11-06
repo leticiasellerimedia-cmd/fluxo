@@ -202,7 +202,7 @@ function simulateInbound(ctx, clientId, { kind, channel = 'sms', text = '', rati
   if (kind === 'rating') { rating = v.num(rating, 'Nota', { min: 1, max: 5 }); body = body || String(rating); }
   if (!body) throw bad('Escreva o texto da resposta simulada.');
   const commId = ctx.db.insert('communications', {
-    company_id: C(ctx), client_id: c.id, direction: 'in', channel, to_address: null, subject: null, body,
+    company_id: C(ctx), client_id: c.id, direction: 'in', channel, to_address: null, subject: kind === 'rating' ? `Nota ${rating}` : null, body,
     status: 'simulated', simulated: 1, provider: 'demo', kind: `inbound_${kind}`, created_by: ctx.user.id, created_at: now(),
   });
   audit(ctx, 'client', c.id, 'Mensagem recebida (simulação)', { client_id: c.id, details: `${channel.toUpperCase()}: ${body}` });

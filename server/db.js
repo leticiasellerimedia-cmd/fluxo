@@ -151,6 +151,34 @@ CREATE TABLE IF NOT EXISTS audit_log (
   client_id INTEGER, action TEXT NOT NULL, from_status TEXT, to_status TEXT, details TEXT, created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS ix_audit_client ON audit_log(company_id, client_id);
+
+-- Gestão de time (acesso exclusivo do dono)
+CREATE TABLE IF NOT EXISTS team_profiles (
+  id INTEGER PRIMARY KEY, company_id INTEGER NOT NULL, user_id INTEGER NOT NULL REFERENCES users(id),
+  position TEXT, hire_date TEXT, employment_type TEXT, motivators TEXT, career_goals TEXT, strengths TEXT, notes TEXT,
+  updated_at TEXT NOT NULL, UNIQUE (company_id, user_id)
+);
+CREATE TABLE IF NOT EXISTS team_reviews (
+  id INTEGER PRIMARY KEY, company_id INTEGER NOT NULL, user_id INTEGER NOT NULL REFERENCES users(id), month TEXT NOT NULL,
+  manager_scores TEXT NOT NULL, self_scores TEXT, notes TEXT NOT NULL DEFAULT '{}', highlights TEXT, attention TEXT, agreements TEXT,
+  created_by INTEGER, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE (company_id, user_id, month)
+);
+CREATE TABLE IF NOT EXISTS pdi_goals (
+  id INTEGER PRIMARY KEY, company_id INTEGER NOT NULL, user_id INTEGER NOT NULL REFERENCES users(id), title TEXT NOT NULL,
+  dimension TEXT, actions TEXT, success_criteria TEXT, due_date TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('not_started','in_progress','done','canceled')), progress_note TEXT,
+  created_by INTEGER, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, completed_at TEXT
+);
+CREATE TABLE IF NOT EXISTS bonus_rules (
+  id INTEGER PRIMARY KEY, company_id INTEGER NOT NULL, name TEXT NOT NULL, applies_to TEXT NOT NULL CHECK (applies_to IN ('field','assistant','all')),
+  metric TEXT NOT NULL, threshold REAL, amount INTEGER NOT NULL, active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS bonuses (
+  id INTEGER PRIMARY KEY, company_id INTEGER NOT NULL, user_id INTEGER NOT NULL REFERENCES users(id), month TEXT NOT NULL,
+  amount INTEGER NOT NULL, reason TEXT NOT NULL, rule_id INTEGER REFERENCES bonus_rules(id),
+  status TEXT NOT NULL CHECK (status IN ('approved','paid','canceled')), paid_date TEXT, expense_id INTEGER, source_key TEXT,
+  created_by INTEGER, created_at TEXT NOT NULL, UNIQUE (company_id, source_key)
+);
 `;
 
 function clean(v) {
